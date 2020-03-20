@@ -6,11 +6,13 @@ use std::format;
 enum Token {
 	Integer { value: u32 },
 	Plus,
+	Minus,
 	Eof
 }
 
 struct Lexer<'a> {
-	text: Chars<'a>
+	text: Chars<'a>,
+	current: Option<char>
 }
 
 fn invalid<A>(msg: &str) -> Result<A> {
@@ -19,20 +21,33 @@ fn invalid<A>(msg: &str) -> Result<A> {
 
 impl<'a> Lexer<'a> {
 	fn new(text: &'a str) -> Self {
-		Lexer {
-			text: text.chars()
-		}
+		let mut text = text.chars();
+		let current = text.next();
+		Lexer { text, current }
+	}
+
+	fn advance(& mut self) {
+		self.current = self.text.next();
 	}
 
 	fn next_token(&mut self) -> Result<Token> {
-		match self.text.next() {
+		while self.current.map_or(false, |c| c.is_whitespace()) {
+			self.advance();
+		}
+
+		match self.current {
 			None => 
 				Ok(Token::Eof),
 			
 			Some(c) =>
 				if c == '+' {
+					self.advance();
 					Ok(Token::Plus)
+				} else if c == '-' {
+					self.advance();
+					Ok(Token::Minus)
 				} else if c.is_digit(10) {
+					self.advance();
 					Ok(Token::Integer { value: c.to_digit(10).unwrap() })
 				} else {
 					invalid(&format!("invalid character '{}'", c))
@@ -59,10 +74,14 @@ fn eat(t: &Token, e: &Token) -> Result<()> {
 fn interpret(text: &str) -> Result<u32> {
 	let mut lexer = Lexer::new(&text);
 	let left = integer(&lexer.next_token()?)?;
-	eat(&lexer.next_token()?, &Token::Plus)?;
+	let op = lexer.next_token()?;
 	let right = integer(&lexer.next_token()?)?;
 
-	Ok(left + right)
+	match op {
+		Token::Plus => Ok(left + right),
+		Token::Minus => Ok(left - right),
+		_ => invalid("expected an operator")
+	}
 }
 
 fn main() -> std::io::Result<()> {
