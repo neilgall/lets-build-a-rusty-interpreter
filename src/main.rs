@@ -9,6 +9,8 @@ enum Token {
 	Minus,
 	Multiply,
 	Divide,
+	OpenParen,
+	CloseParen,
 	Eof
 }
 
@@ -78,6 +80,14 @@ impl<'a> Lexer<'a> {
 						self.advance();
 						Ok(Token::Divide)
 					}
+					'(' => {
+						self.advance();
+						Ok(Token::OpenParen)
+					}
+					')' => {
+						self.advance();
+						Ok(Token::CloseParen)
+					}
 					_ if c.is_digit(10) => {
 						Ok(Token::Integer { value: self.integer() })
 					}
@@ -108,8 +118,23 @@ impl<'a> Interpreter<'a> {
 		Ok(())
 	}
 
+	fn eat(&mut self, token: &Token) -> Result<()> {
+		if &self.current_token == token {
+			self.advance()?;
+			Ok(())
+		} else {
+			invalid(&format!("expected {:?}", token))
+		}
+	}
+
 	fn factor(&mut self) -> Result<u32> {
 		match self.current_token {
+			Token::OpenParen => {
+				self.advance()?;
+				let result = self.expr()?;
+				self.eat(&Token::CloseParen)?;
+				Ok(result)
+			}
 			Token::Integer { value } => {
 				self.advance()?;
 				Ok(value)
@@ -143,9 +168,6 @@ impl<'a> Interpreter<'a> {
 		let mut result = self.term()?;
 		loop {
 			match self.current_token {
-				Token::Eof => {
-					break Ok(result)
-				}
 				Token::Plus => {
 					self.advance()?;
 					result = result + self.term()?;
@@ -154,7 +176,9 @@ impl<'a> Interpreter<'a> {
 					self.advance()?;
 					result = result - self.term()?;
 				}
-				_ => break invalid("expected * or /")
+				_ => {
+					break Ok(result)
+				}
 			}
 		}
 	}
