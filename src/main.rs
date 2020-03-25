@@ -120,21 +120,10 @@ impl<'a> Interpreter<'a> {
 		}
 	}
 
-	fn expr(&mut self) -> Result<u32> {
+	fn term(&mut self) -> Result<u32> {
 		let mut result = self.factor()?;
 		loop {
 			match self.current_token {
-				Token::Eof => {
-					break Ok(result)
-				}
-				Token::Plus => {
-					self.advance()?;
-					result = result + self.factor()?;
-				}
-				Token::Minus => {
-					self.advance()?;
-					result = result - self.factor()?;
-				}
 				Token::Multiply => {
 					self.advance()?;
 					result = result * self.factor()?;
@@ -142,6 +131,28 @@ impl<'a> Interpreter<'a> {
 				Token::Divide => {
 					self.advance()?;
 					result = result / self.factor()?;
+				}
+				_ => {
+					break Ok(result)
+				}
+			}
+		}
+	}
+
+	fn expr(&mut self) -> Result<u32> {
+		let mut result = self.term()?;
+		loop {
+			match self.current_token {
+				Token::Eof => {
+					break Ok(result)
+				}
+				Token::Plus => {
+					self.advance()?;
+					result = result + self.term()?;
+				}
+				Token::Minus => {
+					self.advance()?;
+					result = result - self.term()?;
 				}
 				_ => break invalid("expected * or /")
 			}
