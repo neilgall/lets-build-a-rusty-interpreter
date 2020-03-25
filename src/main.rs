@@ -89,33 +89,63 @@ impl<'a> Lexer<'a> {
 	}
 }
 
-fn integer(t: &Token) -> Result<u32> {
-	match t {
-		Token::Integer { value } => Ok(*value),
-		_                        => invalid("expected an integer")
-	}
+struct Interpreter<'a> {
+	lexer: &'a mut Lexer<'a>,
+	current_token: Token
 }
 
-fn eat(t: &Token, e: &Token) -> Result<()> {
-	if t == e {
+impl<'a> Interpreter<'a> {
+	fn new(lexer: &'a mut Lexer<'a>) -> Result<Self> {
+		let token = lexer.next_token()?;
+		Ok(Interpreter {
+			lexer,
+			current_token: token
+		})
+	}
+
+	fn advance(&mut self) -> Result<()> {
+		self.current_token = self.lexer.next_token()?;
 		Ok(())
-	} else {
-		invalid(&format!("expected {:?}", e))
 	}
-}
 
-fn interpret(text: &str) -> Result<u32> {
-	let mut lexer = Lexer::new(&text);
-	let left = integer(&lexer.next_token()?)?;
-	let op = lexer.next_token()?;
-	let right = integer(&lexer.next_token()?)?;
+	fn factor(&mut self) -> Result<u32> {
+		match self.current_token {
+			Token::Integer { value } => {
+				self.advance()?;
+				Ok(value)
+			}
+			_ => {
+				invalid("expected integer")
+			}
+		}
+	}
 
-	match op {
-		Token::Plus => Ok(left + right),
-		Token::Minus => Ok(left - right),
-		Token::Multiply => Ok(left * right),
-		Token::Divide => Ok(left / right),
-		_ => invalid("expected an operator")
+	fn expr(&mut self) -> Result<u32> {
+		let mut result = self.factor()?;
+		loop {
+			match self.current_token {
+				Token::Eof => {
+					break Ok(result)
+				}
+				Token::Plus => {
+					self.advance()?;
+					result = result + self.factor()?;
+				}
+				Token::Minus => {
+					self.advance()?;
+					result = result - self.factor()?;
+				}
+				Token::Multiply => {
+					self.advance()?;
+					result = result * self.factor()?;
+				}
+				Token::Divide => {
+					self.advance()?;
+					result = result / self.factor()?;
+				}
+				_ => break invalid("expected * or /")
+			}
+		}
 	}
 }
 
@@ -124,6 +154,8 @@ fn main() -> std::io::Result<()> {
 		let mut line = String::new();
 		println!("Enter an expression");
 		stdin().read_line(&mut line)?;
-		println!("Result = {}", interpret(&line)?.to_string());
+		let mut lexer = Lexer::new(&line);
+		let mut interpreter = Interpreter::new(&mut lexer)?;
+		println!("Result = {}", interpreter.expr()?.to_string());
 	}
 }
