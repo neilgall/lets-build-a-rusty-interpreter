@@ -1,3 +1,4 @@
+use std::fmt;
 use std::io::*;
 use std::str::*;
 use std::format;
@@ -12,6 +13,21 @@ enum Token {
 	OpenParen,
 	CloseParen,
 	Eof
+}
+
+impl fmt::Display for Token {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Token::Integer { value } => write!(f, "{}", value.to_string()),
+			Token::Plus => write!(f, "+"),
+			Token::Minus => write!(f, "-"),
+			Token::Multiply => write!(f, "*"),
+			Token::Divide => write!(f, "/"),
+			Token::OpenParen => write!(f, "("),
+			Token::CloseParen => write!(f, ")"),
+			Token::Eof => Ok(())
+		}
+	}
 }
 
 struct Lexer<'a> {
@@ -225,6 +241,32 @@ fn interpret(ast: &AST) -> u32 {
 	}
 }
 
+fn to_postfix(ast: &AST) -> String {
+	match ast {
+		AST::Number { token: _, value } => {
+			value.to_string()
+		}
+		AST::BinaryOp { token: _, lhs, op, rhs } => {
+			let lhs_value = to_postfix(&lhs);
+			let rhs_value = to_postfix(&rhs);
+			format!("{} {} {}", lhs_value, rhs_value, op)
+		}
+	}
+}
+
+fn to_s_expr(ast: &AST) -> String {
+	match ast {
+		AST::Number { token: _, value } => {
+			value.to_string()
+		}
+		AST::BinaryOp { token: _, lhs, op, rhs } => {
+			let lhs_value = to_s_expr(&lhs);
+			let rhs_value = to_s_expr(&rhs);
+			format!("({} {} {})", op, lhs_value, rhs_value)
+		}
+	}
+}
+
 fn main() -> std::io::Result<()> {
 	loop {
 		let mut line = String::new();
@@ -233,6 +275,8 @@ fn main() -> std::io::Result<()> {
 		let mut lexer = Lexer::new(&line);
 		let mut parser = Parser::new(&mut lexer)?;
 		let ast = parser.parse()?;
-		println!("Result = {}", interpret(&ast));
+		println!("postfix: {}", to_postfix(&ast));
+		println!("s_expr:  {}", to_s_expr(&ast));
+		println!("result:  {}", interpret(&ast));
 	}
 }
