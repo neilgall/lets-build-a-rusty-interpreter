@@ -2,7 +2,7 @@ use std::io::*;
 use std::str::*;
 use std::format;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Token {
 	Integer { value: u32 },
 	Plus,
@@ -99,15 +99,39 @@ impl<'a> Lexer<'a> {
 	}
 }
 
-struct Interpreter<'a> {
+#[derive(Debug, Eq, PartialEq)]
+enum AST {
+	BinaryOp { token: Token, lhs: Box<AST>, op: Token, rhs: Box<AST> },
+	Number { token: Token, value: u32 }
+}
+
+impl AST {
+	fn binary_op(lhs: AST, op: Token, rhs: AST) -> Self {
+		AST::BinaryOp {
+			token: op.clone(),
+			lhs: Box::new(lhs),
+			op,
+			rhs: Box::new(rhs)
+		}
+	}
+
+	fn number(token: Token, value: u32) -> Self {
+		AST::Number {
+			token: token.clone(),
+			value
+		}
+	}
+}
+
+struct Parser<'a> {
 	lexer: &'a mut Lexer<'a>,
 	current_token: Token
 }
 
-impl<'a> Interpreter<'a> {
+impl<'a> Parser<'a> {
 	fn new(lexer: &'a mut Lexer<'a>) -> Result<Self> {
 		let token = lexer.next_token()?;
-		Ok(Interpreter {
+		Ok(Parser {
 			lexer,
 			current_token: token
 		})
@@ -127,7 +151,7 @@ impl<'a> Interpreter<'a> {
 		}
 	}
 
-	fn factor(&mut self) -> Result<u32> {
+	fn factor(&mut self) -> Result<AST> {
 		match self.current_token {
 			Token::OpenParen => {
 				self.advance()?;
@@ -137,7 +161,7 @@ impl<'a> Interpreter<'a> {
 			}
 			Token::Integer { value } => {
 				self.advance()?;
-				Ok(value)
+				Ok(AST::number(self.current_token, value))
 			}
 			_ => {
 				invalid("expected integer")
@@ -145,40 +169,57 @@ impl<'a> Interpreter<'a> {
 		}
 	}
 
-	fn term(&mut self) -> Result<u32> {
-		let mut result = self.factor()?;
+	fn term(&mut self) -> Result<AST> {
+		let mut node = self.factor()?;
 		loop {
 			match self.current_token {
-				Token::Multiply => {
+				Token::Multiply | Token::Divide => {
+					let op = self.current_token;
 					self.advance()?;
-					result = result * self.factor()?;
-				}
-				Token::Divide => {
-					self.advance()?;
-					result = result / self.factor()?;
+					node = AST::binary_op(node, op, self.factor()?);
 				}
 				_ => {
-					break Ok(result)
+					break Ok(node)
 				}
 			}
 		}
 	}
 
-	fn expr(&mut self) -> Result<u32> {
-		let mut result = self.term()?;
+	fn expr(&mut self) -> Result<AST> {
+		let mut node = self.term()?;
 		loop {
 			match self.current_token {
-				Token::Plus => {
+				Token::Plus | Token::Minus => {
+					let op = self.current_token;
 					self.advance()?;
-					result = result + self.term()?;
-				}
-				Token::Minus => {
-					self.advance()?;
-					result = result - self.term()?;
+					node = AST::binary_op(node, op, self.term()?);
 				}
 				_ => {
-					break Ok(result)
+					break Ok(node)
 				}
+			}
+		}
+	}
+
+	fn parse(&mut self) -> Result<AST> {
+		self.expr()
+	}
+}
+
+fn interpret(ast: &AST) -> u32 {
+	match ast {
+		AST::Number { token: _, value } => {
+			*value
+		}
+		AST::BinaryOp { token: _, lhs, op ,rhs } => {
+			let lhs_value = interpret(&lhs);
+			let rhs_value = interpret(&rhs);
+			match op {
+				Token::Plus => lhs_value + rhs_value,
+				Token::Minus => lhs_value - rhs_value,
+				Token::Multiply => lhs_value * rhs_value,
+				Token::Divide => lhs_value / rhs_value,
+				_ => panic!("unexpected binary operation {:?}", op)
 			}
 		}
 	}
@@ -190,7 +231,8 @@ fn main() -> std::io::Result<()> {
 		println!("Enter an expression");
 		stdin().read_line(&mut line)?;
 		let mut lexer = Lexer::new(&line);
-		let mut interpreter = Interpreter::new(&mut lexer)?;
-		println!("Result = {}", interpreter.expr()?.to_string());
+		let mut parser = Parser::new(&mut lexer)?;
+		let ast = parser.parse()?;
+		println!("Result = {}", interpret(&ast));
 	}
 }
