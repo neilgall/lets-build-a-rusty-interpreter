@@ -116,15 +116,61 @@ impl<'a> Lexer<'a> {
 }
 
 #[derive(Debug, Eq, PartialEq)]
+enum UnaryOp {
+	Plus,
+	Minus
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum BinaryOp {
+	Plus,
+	Minus,
+	Multiply,
+	Divide
+}
+
+impl fmt::Display for BinaryOp {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			BinaryOp::Plus => write!(f, "+"),
+			BinaryOp::Minus => write!(f, "-"),
+			BinaryOp::Multiply => write!(f, "*"),
+			BinaryOp::Divide => write!(f, "/")
+		}
+	}
+}
+
+#[derive(Debug, Eq, PartialEq)]
 enum AST {
-	BinaryOp { token: Token, lhs: Box<AST>, op: Token, rhs: Box<AST> },
+	UnaryOp { token: Token, op: UnaryOp, expr: Box<AST> },
+	BinaryOp { token: Token, lhs: Box<AST>, op: BinaryOp, rhs: Box<AST> },
 	Number { token: Token, value: u32 }
 }
 
 impl AST {
-	fn binary_op(lhs: AST, op: Token, rhs: AST) -> Self {
+	fn unary_op(token: Token, expr: AST) -> Self {
+		let op = match token {
+			Token::Plus => UnaryOp::Plus,
+			Token::Minus => UnaryOp::Minus,
+			_ => panic!("invalid unary op {:?}", token)
+		};
+		AST::UnaryOp {
+			token,
+			op,
+			expr: Box::new(expr)
+		}
+	}
+
+	fn binary_op(lhs: AST, token: Token, rhs: AST) -> Self {
+		let op = match token {
+			Token::Plus => BinaryOp::Plus,
+			Token::Minus => BinaryOp::Minus,
+			Token::Multiply => BinaryOp::Multiply,
+			Token::Divide => BinaryOp::Divide,
+			_ => panic!("invalid binary op {:?}", token)
+		};
 		AST::BinaryOp {
-			token: op.clone(),
+			token,
 			lhs: Box::new(lhs),
 			op,
 			rhs: Box::new(rhs)
@@ -169,6 +215,11 @@ impl<'a> Parser<'a> {
 
 	fn factor(&mut self) -> Result<AST> {
 		match self.current_token {
+			Token::Plus | Token::Minus => {
+				let token = self.current_token;
+				self.advance()?;
+				Ok(AST::unary_op(token, self.expr()?))
+			}
 			Token::OpenParen => {
 				self.advance()?;
 				let result = self.expr()?;
@@ -222,21 +273,27 @@ impl<'a> Parser<'a> {
 	}
 }
 
-fn interpret(ast: &AST) -> u32 {
+fn interpret(ast: &AST) -> i32 {
 	match ast {
-		AST::Number { token: _, value } => {
-			*value
+		AST::UnaryOp { token: _, op, expr } => {
+			let expr_value = interpret(&expr);
+			match op {
+				UnaryOp::Plus => expr_value,
+				UnaryOp::Minus => -expr_value
+			}
 		}
 		AST::BinaryOp { token: _, lhs, op ,rhs } => {
 			let lhs_value = interpret(&lhs);
 			let rhs_value = interpret(&rhs);
 			match op {
-				Token::Plus => lhs_value + rhs_value,
-				Token::Minus => lhs_value - rhs_value,
-				Token::Multiply => lhs_value * rhs_value,
-				Token::Divide => lhs_value / rhs_value,
-				_ => panic!("unexpected binary operation {:?}", op)
+				BinaryOp::Plus => lhs_value + rhs_value,
+				BinaryOp::Minus => lhs_value - rhs_value,
+				BinaryOp::Multiply => lhs_value * rhs_value,
+				BinaryOp::Divide => lhs_value / rhs_value,
 			}
+		}
+		AST::Number { token: _, value } => {
+			*value as i32
 		}
 	}
 }
@@ -246,6 +303,13 @@ fn to_postfix(ast: &AST) -> String {
 		AST::Number { token: _, value } => {
 			value.to_string()
 		}
+		AST::UnaryOp { token: _, op, expr } => {
+			let expr_value = to_postfix(&expr);
+			match op {
+				UnaryOp::Plus => expr_value,
+				UnaryOp::Minus => format!("{} neg", expr_value)
+			}
+		}
 		AST::BinaryOp { token: _, lhs, op, rhs } => {
 			let lhs_value = to_postfix(&lhs);
 			let rhs_value = to_postfix(&rhs);
@@ -254,10 +318,17 @@ fn to_postfix(ast: &AST) -> String {
 	}
 }
 
-fn to_s_expr(ast: &AST) -> String {
+fn to_s_expr(ast: &AST) -> String {	
 	match ast {
 		AST::Number { token: _, value } => {
 			value.to_string()
+		}
+		AST::UnaryOp { token: _, op, expr } => {
+			let expr_value = to_s_expr(&expr);
+			match op {
+				UnaryOp::Plus => expr_value,
+				UnaryOp::Minus => format!("(neg {})", expr_value)
+			}
 		}
 		AST::BinaryOp { token: _, lhs, op, rhs } => {
 			let lhs_value = to_s_expr(&lhs);
