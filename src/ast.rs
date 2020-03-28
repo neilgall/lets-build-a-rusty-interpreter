@@ -33,7 +33,7 @@ pub enum AST {
 	BinaryOp { token: Token, lhs: Box<AST>, op: BinaryOp, rhs: Box<AST> },
 	Number { token: Token, value: u32 },
 	Variable { token: Token, value: String },
-	Assign { token: Token, left: Box<AST>, right: Box<AST> },
+	Assign { token: Token, left: String, right: Box<AST> },
 	Compound { children: Box<Vec<AST>> }
 }
 
@@ -81,10 +81,10 @@ impl AST {
 		}
 	}
 
-	pub fn assign(token: &Token, left: AST, right: AST) -> Self {
+	pub fn assign(token: &Token, left: &str, right: AST) -> Self {
 		AST::Assign {
 			token: token.clone(),
-			left: Box::new(left),
+			left: String::from(left),
 			right: Box::new(right)
 		}
 	}

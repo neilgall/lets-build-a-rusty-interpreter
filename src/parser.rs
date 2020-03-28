@@ -68,11 +68,14 @@ impl<'a> Parser<'a> {
 	}
 
 	fn assignment_statement(&mut self) -> Result<AST> {
-		let left = self.variable()?;
+		let left = match self.variable()? {
+			AST::Variable { token: _, value } => Ok(value),
+			_ => invalid("must have a variable on LHS of assignment")
+		}?;
 		let token = self.current_token.clone();
 		self.eat(&Token::Assign)?;
 		let right = self.expr()?;
-		Ok(AST::assign(&token, left, right))
+		Ok(AST::assign(&token, &left, right))
 	}
 
 	fn variable(&mut self) -> Result<AST> {
