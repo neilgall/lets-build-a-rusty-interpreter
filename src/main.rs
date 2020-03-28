@@ -28,6 +28,7 @@ fn interpret(ast: &AST) -> i32 {
 		AST::Number { token: _, value } => {
 			*value as i32
 		}
+		_ => panic!("not implemented")
 	}
 }
 
@@ -48,6 +49,7 @@ fn to_postfix(ast: &AST) -> String {
 			let rhs_value = to_postfix(&rhs);
 			format!("{} {} {}", lhs_value, rhs_value, op)
 		}
+		_ => panic!("not implemented")
 	}
 }
 
@@ -68,6 +70,7 @@ fn to_s_expr(ast: &AST) -> String {
 			let rhs_value = to_s_expr(&rhs);
 			format!("({} {} {})", op, lhs_value, rhs_value)
 		}
+		_ => panic!("not implemented")
 	}
 }
 
@@ -76,8 +79,8 @@ fn main() -> std::io::Result<()> {
 		let mut line = String::new();
 		println!("Enter an expression");
 		stdin().read_line(&mut line)?;
-		let mut lexer = lexer::Lexer::new(&line);
-		let mut parser = parser::Parser::new(&mut lexer)?;
+		let lexer = lexer::Lexer::new(&line);
+		let mut parser = parser::Parser::new(lexer)?;
 		let ast = parser.parse()?;
 		println!("postfix: {}", to_postfix(&ast));
 		println!("s_expr:  {}", to_s_expr(&ast));

@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io::*;
+use std::iter::Peekable;
 use std::str::*;
 use std::format;
 
@@ -17,6 +18,8 @@ pub enum Token {
 	Divide,
 	OpenParen,
 	CloseParen,
+	Assign,
+	EndStatement,
 	Eof
 }
 
@@ -35,13 +38,15 @@ impl fmt::Display for Token {
 			Token::Divide => write!(f, "/"),
 			Token::OpenParen => write!(f, "("),
 			Token::CloseParen => write!(f, ")"),
+			Token::Assign => write!(f, ":="),
+			Token::EndStatement => write!(f, ";"),
 			Token::Eof => Ok(())
 		}
 	}
 }
 
 pub struct Lexer<'a> {
-	text: Chars<'a>,
+	text: Peekable<Chars<'a>>,
 	current: Option<char>
 }
 
@@ -51,7 +56,7 @@ pub fn invalid<A>(msg: &str) -> Result<A> {
 
 impl<'a> Lexer<'a> {
 	pub fn new(text: &'a str) -> Self {
-		let mut text = text.chars();
+		let mut text = text.chars().peekable();
 		let current = text.next();
 		Lexer { text, current }
 	}
@@ -60,6 +65,10 @@ impl<'a> Lexer<'a> {
 		let c = self.current.unwrap();
 		self.current = self.text.next();
 		c
+	}
+
+	fn peek(&mut self, c: char) -> bool {
+		self.text.peek() == Some(&c)
 	}
 
 	fn skip_whitespace(&mut self) {		
@@ -128,6 +137,15 @@ impl<'a> Lexer<'a> {
 						self.advance();
 						Ok(Token::CloseParen)
 					}
+					';' => {
+						self.advance();
+						Ok(Token::EndStatement)
+					}
+					':' if self.peek('=') => {
+						self.advance();
+						self.advance();
+						Ok(Token::Assign)
+					}
 					_ if c.is_digit(10) => {
 						Ok(Token::Integer { value: self.integer() })
 					}
@@ -145,4 +163,50 @@ impl<'a> Lexer<'a> {
 				}
 		}
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn read(s: &str) -> Token {
+		let mut lex = Lexer::new(s);
+		lex.next_token().unwrap()
+	}
+
+	#[test]
+	fn dot() {
+		assert_eq!(read("."), Token::Dot);
+	}
+
+	#[test]
+	fn begin() {
+		assert_eq!(read("BEGIN"), Token::Begin);
+	}
+
+	#[test]
+	fn end() {
+		assert_eq!(read("END"), Token::End);
+	}
+
+	#[test]
+	fn identifier() {
+		assert_eq!(read("foo"), Token::Identifier { value: String::from("foo") });
+	}
+
+	#[test]
+	fn alphanumeric_identifier() {
+		assert_eq!(read("foo42bar"), Token::Identifier { value: String::from("foo42bar") });
+	}
+
+	#[test]
+	fn integer() {
+		assert_eq!(read("123"), Token::Integer { value: 123 });
+	}
+
+	#[test]
+	fn assign() {
+		assert_eq!(read(":="), Token::Assign);
+	}
+
 }

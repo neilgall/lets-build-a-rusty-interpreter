@@ -31,7 +31,10 @@ impl fmt::Display for BinaryOp {
 pub enum AST {
 	UnaryOp { token: Token, op: UnaryOp, expr: Box<AST> },
 	BinaryOp { token: Token, lhs: Box<AST>, op: BinaryOp, rhs: Box<AST> },
-	Number { token: Token, value: u32 }
+	Number { token: Token, value: u32 },
+	Variable { token: Token, value: String },
+	Assign { token: Token, left: Box<AST>, right: Box<AST> },
+	Compound { children: Box<Vec<AST>> }
 }
 
 impl AST {
@@ -68,6 +71,27 @@ impl AST {
 		AST::Number {
 			token: token.clone(),
 			value
+		}
+	}
+
+	pub fn variable(token: &Token, name: &str) -> Self {
+		AST::Variable {
+			token: token.clone(),
+			value: String::from(name)
+		}
+	}
+
+	pub fn assign(token: &Token, left: AST, right: AST) -> Self {
+		AST::Assign {
+			token: token.clone(),
+			left: Box::new(left),
+			right: Box::new(right)
+		}
+	}
+
+	pub fn compound(children: Vec<AST>) -> Self {
+		AST::Compound {
+			children: Box::new(children)
 		}
 	}
 }
