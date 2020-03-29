@@ -95,6 +95,9 @@ impl<'a> Lexer<'a> {
 
 	fn identifier(&mut self) -> String {
 		let mut result: String = String::new();
+		if self.current.map_or(false, |c| c == '_' || c.is_alphabetic()) {
+			result.push(self.advance());
+		}
 		while self.current.map_or(false, |c| c.is_alphanumeric()) {
 			result.push(self.advance());
 		}
@@ -145,7 +148,7 @@ impl<'a> Lexer<'a> {
 					_ if c.is_digit(10) => {
 						Ok(Token::Integer { value: self.integer() })
 					}
-					_ if c.is_alphabetic() => {
+					_ if c == '_' || c.is_alphabetic() => {
 						let id = self.identifier();
 						Ok(match id.to_uppercase().as_ref() {
 							"BEGIN" => Token::Begin,
