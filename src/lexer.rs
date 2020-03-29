@@ -125,10 +125,6 @@ impl<'a> Lexer<'a> {
 						self.advance();
 						Ok(Token::Multiply)
 					}
-					'/' => {
-						self.advance();
-						Ok(Token::Divide)
-					}
 					'(' => {
 						self.advance();
 						Ok(Token::OpenParen)
@@ -154,6 +150,7 @@ impl<'a> Lexer<'a> {
 						Ok(match id.to_uppercase().as_ref() {
 							"BEGIN" => Token::Begin,
 							"END" => Token::End,
+							"DIV" => Token::Divide,
 							_ => Token::Identifier { value: id }
 						})
 					}
@@ -182,11 +179,15 @@ mod tests {
 	#[test]
 	fn begin() {
 		assert_eq!(read("BEGIN"), Token::Begin);
+		assert_eq!(read("begin"), Token::Begin);
+		assert_eq!(read("BeGiN"), Token::Begin);
 	}
 
 	#[test]
 	fn end() {
 		assert_eq!(read("END"), Token::End);
+		assert_eq!(read("end"), Token::End);
+		assert_eq!(read("EnD"), Token::End);
 	}
 
 	#[test]
