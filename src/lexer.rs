@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::io::*;
 use std::iter::Peekable;
@@ -5,17 +6,25 @@ use std::str::*;
 use std::format;
 
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum Token {
-	Integer { value: u32 },
+	IntegerLiteral { value: u32 },
+	RealLiteral { value: String }, // lexer keeps reals as string for equality
 	Identifier { value: String },
+	Program,
+	Var,
 	Begin,
 	End,
 	Dot,
+	Colon,
+	Comma,
+	Integer,
+	Real,
 	Plus,
 	Minus,
 	Multiply,
-	Divide,
+	IntegerDivide,
+	RealDivide,
 	OpenParen,
 	CloseParen,
 	Assign,
@@ -23,24 +32,49 @@ pub enum Token {
 	Eof
 }
 
+lazy_static! {
+	static ref KEYWORD_TOKENS: HashMap<&'static str, Token> = {
+		let mut keywords = HashMap::new();
+		keywords.insert("PROGRAM", Token::Program);
+		keywords.insert("VAR", Token::Var);
+		keywords.insert("BEGIN", Token::Begin);
+		keywords.insert("END", Token::End);
+		keywords.insert("INTEGER", Token::Integer);
+		keywords.insert("REAL", Token::Real);
+		keywords.insert("DIV", Token::IntegerDivide);
+		keywords
+	};
+
+	static ref KEYWORD_STRINGS: HashMap<Token, &'static str> = {
+		let mut keywords = HashMap::new();
+		for (&key, val) in KEYWORD_TOKENS.iter() {
+			keywords.insert(val.clone(), key);
+		}
+		keywords
+	};
+}
+
 
 impl fmt::Display for Token {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Token::Integer { value } => write!(f, "{}", value.to_string()),
-			Token::Identifier { value } => write!(f, "{}", value),
-			Token::Begin => write!(f, "BEGIN"),
-			Token::End => write!(f, "END"),
-			Token::Dot => write!(f, "."),
-			Token::Plus => write!(f, "+"),
-			Token::Minus => write!(f, "-"),
-			Token::Multiply => write!(f, "*"),
-			Token::Divide => write!(f, "/"),
-			Token::OpenParen => write!(f, "("),
-			Token::CloseParen => write!(f, ")"),
-			Token::Assign => write!(f, ":="),
-			Token::EndStatement => write!(f, ";"),
-			Token::Eof => Ok(())
+		match KEYWORD_STRINGS.get(self) { 
+			Some(s) => write!(f, "{}", s),
+			None => match self {
+				Token::IntegerLiteral { value } => write!(f, "{}", value.to_string()),
+				Token::RealLiteral { value } => write!(f, "{}", value),
+				Token::Identifier { value } => write!(f, "{}", value),
+				Token::Dot => write!(f, "."),
+				Token::Plus => write!(f, "+"),
+				Token::Minus => write!(f, "-"),
+				Token::Multiply => write!(f, "*"),
+				Token::RealDivide => write!(f, "/"),
+				Token::OpenParen => write!(f, "("),
+				Token::CloseParen => write!(f, ")"),
+				Token::Assign => write!(f, ":="),
+				Token::EndStatement => write!(f, ";"),
+				Token::Eof => Ok(()),
+				_ => panic!("no display for {:?}", self)
+			}
 		}
 	}
 }
@@ -77,19 +111,26 @@ impl<'a> Lexer<'a> {
 		}
 	}
 
-	fn integer(&mut self) -> u32 {
-		let mut i = 0;
-		loop {
-			match self.current.and_then(|c| c.to_digit(10)) { 
-				None => {
-					return i;
-				}
+	fn skip_comment(&mut self) {
+		while self.current.map_or(false, |c| c != '}') {
+			self.advance();
+		}
+	}
 
-				Some(d) => {
-					i = (i * 10) + d;
-					self.advance();
-				}
+	fn number(&mut self) -> Token {
+		let mut value = String::new();
+		while self.current.is_some() && self.current.unwrap().is_digit(10) {
+			value.push(self.advance());
+		}
+		if self.current.map_or(false, |c| c == '.') {
+			value.push(self.advance());
+			while self.current.is_some() && self.current.unwrap().is_digit(10) {
+				value.push(self.advance());
 			}
+			Token::RealLiteral { value }
+		} else {
+			let i = u32::from_str_radix(&value, 10).unwrap();
+			Token::IntegerLiteral { value: i }
 		}
 	}
 
@@ -106,15 +147,25 @@ impl<'a> Lexer<'a> {
 
 	pub fn next_token(&mut self) -> Result<Token> {
 		self.skip_whitespace();
+
 		match self.current {
 			None => 
 				Ok(Token::Eof),
 			
 			Some(c) =>
 				match c {
+					'{' => {
+						self.advance();
+						self.skip_comment();
+						self.next_token()
+					}
 					'.' => {
 						self.advance();
 						Ok(Token::Dot)
+					}
+					',' => {
+						self.advance();
+						Ok(Token::Comma)
 					}
 					'+' => {
 						self.advance();
@@ -128,6 +179,10 @@ impl<'a> Lexer<'a> {
 						self.advance();
 						Ok(Token::Multiply)
 					}
+					'/' => {
+						self.advance();
+						Ok(Token::RealDivide)
+					}
 					'(' => {
 						self.advance();
 						Ok(Token::OpenParen)
@@ -140,21 +195,24 @@ impl<'a> Lexer<'a> {
 						self.advance();
 						Ok(Token::EndStatement)
 					}
-					':' if self.peek('=') => {
-						self.advance();
-						self.advance();
-						Ok(Token::Assign)
+					':' => {
+						if self.peek('=') {
+							self.advance();
+							self.advance();
+							Ok(Token::Assign)
+						} else {
+							self.advance();
+							Ok(Token::Colon)
+						}
 					}
 					_ if c.is_digit(10) => {
-						Ok(Token::Integer { value: self.integer() })
+						Ok(self.number())
 					}
 					_ if c == '_' || c.is_alphabetic() => {
 						let id = self.identifier();
-						Ok(match id.to_uppercase().as_ref() {
-							"BEGIN" => Token::Begin,
-							"END" => Token::End,
-							"DIV" => Token::Divide,
-							_ => Token::Identifier { value: id }
+						Ok(match KEYWORD_TOKENS.get(&id.to_uppercase().as_ref()) {
+							Some(token) => token.clone(),
+							None => Token::Identifier { value: id }
 						})
 					}
 					_ => { 
@@ -180,17 +238,11 @@ mod tests {
 	}
 
 	#[test]
-	fn begin() {
-		assert_eq!(read("BEGIN"), Token::Begin);
-		assert_eq!(read("begin"), Token::Begin);
-		assert_eq!(read("BeGiN"), Token::Begin);
-	}
-
-	#[test]
-	fn end() {
-		assert_eq!(read("END"), Token::End);
-		assert_eq!(read("end"), Token::End);
-		assert_eq!(read("EnD"), Token::End);
+	fn keywords() {
+		KEYWORD_TOKENS.iter().for_each(|(string, token)| {
+			assert_eq!(read(string), token.clone());
+			assert_eq!(read(&string.to_lowercase()), token.clone());
+		});
 	}
 
 	#[test]
@@ -205,12 +257,22 @@ mod tests {
 
 	#[test]
 	fn integer() {
-		assert_eq!(read("123"), Token::Integer { value: 123 });
+		assert_eq!(read("123"), Token::IntegerLiteral { value: 123 });
+	}
+
+	#[test]
+	fn real() {
+		assert_eq!(read("123.456"), Token::RealLiteral { value: String::from("123.456") });
 	}
 
 	#[test]
 	fn assign() {
 		assert_eq!(read(":="), Token::Assign);
+	}
+
+	#[test]
+	fn colon() {
+		assert_eq!(read(": foo"), Token::Colon);
 	}
 
 }

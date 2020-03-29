@@ -1,7 +1,11 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::io::*;
 
 mod ast;
 mod lexer;
+mod number;
 mod parser;
 mod interpreter;
 

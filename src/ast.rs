@@ -56,7 +56,7 @@ impl AST {
 			Token::Plus => BinaryOp::Plus,
 			Token::Minus => BinaryOp::Minus,
 			Token::Multiply => BinaryOp::Multiply,
-			Token::Divide => BinaryOp::Divide,
+			Token::IntegerDivide => BinaryOp::Divide,
 			_ => panic!("invalid binary op {:?}", token)
 		};
 		AST::BinaryOp {

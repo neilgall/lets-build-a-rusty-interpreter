@@ -101,7 +101,7 @@ impl<'a> Parser<'a> {
 				self.eat(&Token::CloseParen)?;
 				Ok(result)
 			}
-			Token::Integer { value } => {
+			Token::IntegerLiteral { value } => {
 				let token = self.advance()?;
 				Ok(AST::number(&token, value))
 			}
@@ -113,7 +113,7 @@ impl<'a> Parser<'a> {
 		let mut node = self.factor()?;
 		loop {
 			match self.current_token {
-				Token::Multiply | Token::Divide => {
+				Token::Multiply | Token::IntegerDivide => {
 					let token = self.advance()?;
 					node = AST::binary_op(node, &token, self.factor()?);
 				}
@@ -157,8 +157,8 @@ mod tests {
 			BEGIN
 				BEGIN
 					number := 2;
-					a := nunber;
-					b := 10 * a + 10 * number / 4;
+					a := number;
+					b := 10 * a + 10 * number div 4;
 					c := a - - b;
 				END;
 				x := 11;
