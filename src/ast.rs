@@ -77,7 +77,7 @@ impl AST {
 	pub fn variable(token: &Token, name: &str) -> Self {
 		AST::Variable {
 			token: token.clone(),
-			value: String::from(name)
+			value: name.to_lowercase()
 		}
 	}
 

@@ -1,9 +1,6 @@
 use std::io::*;
-use std::format;
 
 mod ast;
-use ast::*;
-
 mod lexer;
 mod parser;
 mod interpreter;

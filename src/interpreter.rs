@@ -63,7 +63,7 @@ pub fn interpret(ast: &AST, scope: &mut Scope) -> i32 {
 			scope.get(value)
 		}
 
-		_ => panic!("not implemented")
+		// _ => panic!("not implemented")
 	}
 }
 

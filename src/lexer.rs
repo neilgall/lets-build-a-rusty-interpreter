@@ -151,7 +151,7 @@ impl<'a> Lexer<'a> {
 					}
 					_ if c.is_alphabetic() => {
 						let id = self.identifier();
-						Ok(match id.as_ref() {
+						Ok(match id.to_uppercase().as_ref() {
 							"BEGIN" => Token::Begin,
 							"END" => Token::End,
 							_ => Token::Identifier { value: id }
